@@ -1,0 +1,14 @@
+frameworkVersion: ">=1.44.1 <2.0.0"
+
+service: patronemptor
+
+provider:
+  name: aws
+  runtime: python3.7
+  memorySize: 128
+  tracing:
+    lambda: true
+
+functions:
+  weblambda:
+    handler: handler.url_parser

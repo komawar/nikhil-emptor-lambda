@@ -20,4 +20,4 @@ var/
 .serverless
 
 # IDE
-./idea
+./idea/*

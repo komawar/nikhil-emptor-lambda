@@ -8,6 +8,22 @@ provider:
   memorySize: 128
   tracing:
     lambda: true
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - iam:GetRole
+        - iam:PassRole
+        - iam:DeleteRolePolicy
+        - iam:CreateRole
+        - iam:DeleteRole
+        - iam:AttachRolePolicy
+        - iam:DetachRolePolicy
+        - iam:PutRolePolicy
+        - s3:CreateBucket
+        - s3:PutObject
+        - dynamodb:*
+      Resource:
+        "*"
 
 functions:
   weblambda:

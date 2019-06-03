@@ -6,6 +6,7 @@ provider:
   name: aws
   runtime: python3.7
   memorySize: 128
+  region: us-east-1
   tracing:
     lambda: true
   iamRoleStatements:
@@ -22,9 +23,14 @@ provider:
         - s3:CreateBucket
         - s3:PutObject
         - dynamodb:*
+        - lambda:*
       Resource:
         "*"
 
 functions:
   weblambda:
     handler: handler.url_parser
+  asyncinvoke:
+    handler: asyncinvoke.processor
+  querydb:
+    handler: querydb.processor

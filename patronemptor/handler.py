@@ -9,33 +9,7 @@ s3_client = boto3.client('s3', region_name='us-east-1')
 dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb')
 
-table_name = 'version2'
-
-
-def create_table():
-    try:
-        return dynamodb_client.create_table(
-            AttributeDefinitions=[
-                {
-                    'AttributeName': 'title',
-                    'AttributeType': 'S'
-                },
-            ],
-            TableName=table_name,
-            KeySchema=[
-                {
-                    'AttributeName': 'title',
-                    'KeyType': 'HASH'
-                }
-            ],
-            ProvisionedThroughput={
-                'ReadCapacityUnits': 5,
-                'WriteCapacityUnits': 5
-            },
-        )
-    except dynamodb_client.exceptions.ResourceInUseException as e:
-        print ("Skipping table creation, already exists" + str(e))
-        return None
+table_name = 'version3'
 
 
 def extract_title(r):
@@ -48,38 +22,82 @@ def extract_title(r):
 
 def store_to_s3(r):
     bucket = 'patronemptor-version2'
-    s3_client.create_bucket(Bucket=bucket)
     obj = str(uuid.uuid4())
+    try:
+        s3_client.create_bucket(Bucket=bucket)
+        s3_client.put_object(Body=r.text, Bucket=bucket, Key=obj)
+        obj_url = 'https://%s.s3.amazonaws.com/%s' % (bucket, obj)
+        return obj_url
+    except Exception as e:
+        print ("ERROR: Could not store object %s to s3 bucket %s. Exception"
+               " %s" % (obj, bucket, str(e)))
+        raise e
 
-    s3_client.put_object(Body=r.text, Bucket=bucket, Key=obj)
-    obj_url = 'https://%s.s3.amazonaws.com/%s' % (bucket, obj)
 
-    return obj_url
+def store_to_dynamodb(record):
+    try:
+        table = dynamodb.Table(table_name)
+        table.update_item(
+            Key={
+                'req_id': record['req_id']['S']
+            },
+            AttributeUpdates={
+                'recordstate': {
+                    'Value': record['recordstate'],
+                },
+                's3_url': {
+                    'Value': record['s3_url'],
+                },
+                'title': {
+                    'Value': record['title'],
+                }
+            },
+            TableName=table_name,
+        )
+    except Exception as e:
+        print ("ERROR: Could not store record with ID %s. Exception"
+               " %s" % (record['req_id']['S'], str(e)))
+        raise e
 
 
-def store_to_dynamodb(title):
-    create_table()
-    table = dynamodb.Table(table_name)
-
-    table.put_item(
-        Item={
-            'title': title
+def read_from_db(req_id):
+    response = dynamodb_client.get_item(
+        TableName=table_name,
+        Key={
+            'req_id': {
+                'S': req_id
+            }
         }
     )
+    if response.get('Item'):
+        return {
+            'req_id': response['Item']['req_id'],
+            'url': response['Item']['url'],
+            'recordstate': response['Item']['recordstate'],
+        }
+    else:
+        return None
 
 
 def url_parser(event, context):
-    url = event
+    processing_id = event['req_id']
+    record = read_from_db(processing_id)
+    if record:
+        r = requests.get(record['url']['S'])
+        title = extract_title(r)
+        obj_url = store_to_s3(r)
 
-    r = requests.get(url)
-
-    title = extract_title(r)
-
-    obj_url = store_to_s3(r)
-
-    store_to_dynamodb(title)
-
-    return {
-        "title": title,
-        "S3-URL": obj_url
-    }
+        new_record = {
+            'req_id': record['req_id'],
+            'recordstate': 'PROCESSED',
+            's3_url': obj_url,
+            'title': title
+        }
+        store_to_dynamodb(new_record)
+    else:
+        resp = dynamodb_client.describe_table(
+            TableName=table_name
+        )
+        table_arn = resp['Table']['TableArn']
+        print ("Bad request. Record with ID %s not found in Database"
+               "table %s" % (processing_id, table_arn))

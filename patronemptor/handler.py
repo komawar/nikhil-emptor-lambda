@@ -155,7 +155,11 @@ def url_parser(event, context):
     processing_id = event['req_id']
     record = read_from_db(processing_id)
     if record:
-        r = requests.get(record['url']['S'])
+        try:
+            r = requests.get(record['url']['S'])
+        except requests.exceptions.RequestException as e:
+            print (e)
+            raise e
         title = extract_title(r.text)
         obj_url = store_to_s3(r.text)
 

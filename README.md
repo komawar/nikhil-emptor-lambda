@@ -1,6 +1,5 @@
 # nikhil-emptor-lambda
 
-============
 patronemptor
 ============
 

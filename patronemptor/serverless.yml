@@ -30,7 +30,35 @@ provider:
 functions:
   weblambda:
     handler: handler.url_parser
+#    events:
+#      - stream:
+#          type: dynamodb
+#          batchSize: 5
+#          startingPosition: LATEST
+#          arn:
+#            Fn::GetAtt:
+#              - myDynamoTable
+#              - arn:aws:dynamodb:($self:provide.region)*
   asyncinvoke:
     handler: asyncinvoke.processor
   querydb:
     handler: querydb.processor
+
+#resources:
+#  Resources:
+#    myDynamoTable:
+#      Type: 'AWS::DynamoDB::Table'
+#      Properties:
+#        TableName: 'version3'
+#        AttributeDefinitions:
+#          - AttributeName: req_id
+#            AttributeType: S
+#        KeySchema:
+#          - AttributeName: req_id
+#            KeyType: HASH
+#        ProvisionedThroughput:
+#          ReadCapacityUnits: 5
+#          WriteCapacityUnits: 5
+#  Outputs:
+#    TableStreamArn:
+#      Value: !GetAtt myDynamoTable.StreamArn

@@ -144,36 +144,45 @@ def url_parser(event, context):
 
     Parameters
     ----------
-    event: dict
-        A dictionary containing the req_id uuid corresponding to the DynamoDB
-        table *version3* record.
+    event: list
+        A list of dictionaries containing the req_id uuid corresponding to the
+        DynamoDB table records.
     context: AWS Lambda Context Object
         A general AWS Lambda Context Object that contains lambda function
         specific information. Unused in this function, however a mandatory
         Lambda function parameter.
     """
-    processing_id = event['req_id']
-    record = read_from_db(processing_id)
-    if record:
-        try:
-            r = requests.get(record['url']['S'])
-        except requests.exceptions.RequestException as e:
-            print (e)
-            raise e
-        title = extract_title(r.text)
-        obj_url = store_to_s3(r.text)
-
-        new_record = {
-            'req_id': record['req_id']['S'],
-            'recordstate': 'PROCESSED',
-            's3_url': obj_url,
-            'title': title
-        }
-        store_to_dynamodb(new_record)
-    else:
-        resp = dynamodb_client.describe_table(
-            TableName=table_name
+    for record in event['Records']:
+        processing_id = record.get(
+            'dynamodb'
+        ).get(
+            'Keys'
+        ).get(
+            'req_id'
+        ).get(
+            'S'
         )
-        table_arn = resp['Table']['TableArn']
-        print ("Bad request. Record with ID %s not found in Database"
-               "table %s" % (processing_id, table_arn))
+        record = read_from_db(processing_id)
+        if record:
+            try:
+                r = requests.get(record['url']['S'])
+            except requests.exceptions.RequestException as e:
+                print (e)
+                raise e
+            title = extract_title(r.text)
+            obj_url = store_to_s3(r.text)
+
+            new_record = {
+                'req_id': record['req_id']['S'],
+                'recordstate': 'PROCESSED',
+                's3_url': obj_url,
+                'title': title
+            }
+            store_to_dynamodb(new_record)
+        else:
+            resp = dynamodb_client.describe_table(
+                TableName=table_name
+            )
+            table_arn = resp['Table']['TableArn']
+            print ("Bad request. Record with ID %s not found in Database"
+                   "table %s" % (processing_id, table_arn))

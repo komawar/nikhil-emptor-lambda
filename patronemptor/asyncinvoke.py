@@ -18,13 +18,15 @@ def get_table_arn():
 
     Returns
     -------
-    str
-        AWS ARN string for the table.
+    dict
+        A dictionary with AWS ARN string for the table ARN.
     """
     resp = dynamodb_client.describe_table(
         TableName=table_name
     )
-    return resp['Table']['TableArn']
+    return {
+        "table_arn": resp['Table']['TableArn']
+    }
 
 
 def create_table():
@@ -57,6 +59,10 @@ def create_table():
             ProvisionedThroughput={
                 'ReadCapacityUnits': 5,
                 'WriteCapacityUnits': 5
+            },
+            StreamSpecification={
+                'StreamEnabled': True,
+                'StreamViewType': 'NEW_IMAGE'
             },
         )
         return True
@@ -101,8 +107,9 @@ def create_id_and_store(url):
             )
             return req_id
         except Exception as e:
+            table_arn = get_table_arn()['table_arn']
             print ("Exception %s raised while creating Item with ID %s in the "
-                   "database table %s" % (str(e), req_id, get_table_arn()))
+                   "database table %s" % (str(e), req_id, table_arn))
             return None
     else:
         print ("ERROR: Error creating table or record. Aborting.")
@@ -139,19 +146,10 @@ def processor(url, context):
         req_id = create_id_and_store(url)
 
         if req_id:
-            async_param = {
-                "req_id": req_id
-            }
-
-            lambda_client.invoke_async(
-                FunctionName='patronemptor-dev-weblambda',
-                InvokeArgs=json.dumps(async_param)
-                )
-
             return {
                     "status_code": 200,
                     "message": "successfully processed the request",
-                    'processing_id': req_id
+                    "processing_id": req_id
             }
 
     return {
